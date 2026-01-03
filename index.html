@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solar Power Prediction Dashboard</title>
+
+<!-- Google Font -->
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+* { box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+body {
+  margin:0;
+  min-height:100vh;
+  background: linear-gradient(135deg,#fef3c7,#fde68a); /* softer yellow */
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  padding:20px;
+}
+.dashboard {
+  width:100%;
+  max-width:1000px;
+  background:#fff8dc;
+  border-radius:20px;
+  padding:30px;
+  box-shadow:0 20px 40px rgba(0,0,0,0.25);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+h1 { text-align:center; color:#78350f; margin-top:0; }
+.input-panel {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:20px;
+  width:100%;
+  margin:20px 0;
+}
+.input-panel label {
+  font-weight:600; display:block; margin-bottom:5px; color:#78350f;
+}
+.input-panel input {
+  padding:10px; border-radius:10px; border:1px solid #d6b84a; width:100%; font-size:14px; background:#fffde7;
+}
+button {
+  margin-top:15px; width:50%; padding:12px; border-radius:12px; border:none;
+  background: linear-gradient(135deg,#fbbf24,#b45309); color:#fff; font-weight:600; cursor:pointer; transition:0.3s;
+}
+button:hover { opacity:0.85; }
+.result-card {
+  text-align:center;
+  margin-top:20px;
+  padding:20px;
+  width:80%;
+  background: linear-gradient(135deg,#fcd34d,#f59e0b); /* darker yellow gradient */
+  border-radius:15px;
+  font-weight:700; font-size:22px; color:#78350f;
+}
+.charts {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:25px;
+  margin-top:30px;
+  width:100%;
+}
+@media(max-width:768px){ .charts { grid-template-columns:1fr; } button { width:70%; } }
+canvas { background: #fffde7; border-radius:10px; padding:10px; }
+</style>
+</head>
+<body>
+
+<div class="dashboard">
+  <h1>Solar Power Prediction Dashboard</h1>
+  <div class="input-panel">
+    <div><label>Location</label><input type="text" id="location" placeholder="City/Latitude"></div>
+    <div><label>Temperature (°C)</label><input type="number" id="temp" placeholder="30"></div>
+    <div><label>Humidity (%)</label><input type="number" id="humidity" placeholder="50"></div>
+    <div><label>Cloud Cover (%)</label><input type="number" id="cloud" placeholder="20"></div>
+    <div><label>Wind Speed (m/s)</label><input type="number" id="wind" placeholder="5"></div>
+    <div><label>Panel Capacity (kW)</label><input type="number" id="capacity" placeholder="5"></div>
+  </div>
+  <button onclick="predictSolar()">Predict Power</button>
+
+  <div class="result-card" id="predictedPowerCard" style="display:none;"></div>
+  <div class="charts">
+    <canvas id="barChart"></canvas>
+    <canvas id="lineChart"></canvas>
+    <canvas id="scatterChart"></canvas>
+  </div>
+</div>
+
+<script>
+let barChart,lineChart,scatterChart;
+function predictSolar(){
+  const location=document.getElementById('location').value;
+  const temp=parseFloat(document.getElementById('temp').value);
+  const humidity=parseFloat(document.getElementById('humidity').value);
+  const cloud=parseFloat(document.getElementById('cloud').value);
+  const wind=parseFloat(document.getElementById('wind').value);
+  const capacity=parseFloat(document.getElementById('capacity').value);
+
+  if(!location||isNaN(temp)||isNaN(humidity)||isNaN(cloud)||isNaN(wind)||isNaN(capacity)){
+    alert('Please fill all fields correctly'); return;
+  }
+
+  let efficiency = 1 - (cloud/100) - ((temp-25)*0.004) - ((humidity-50)*0.002) - ((wind-3)*0.01);
+  if(efficiency<0) efficiency=0;
+  const sunlightHours = 5;
+  const predicted = parseFloat((capacity * sunlightHours * efficiency).toFixed(2));
+
+  document.getElementById('predictedPowerCard').innerText = `Predicted Solar Power for ${location}: ${predicted} kWh`;
+  document.getElementById('predictedPowerCard').style.display='block';
+
+  const barCtx=document.getElementById('barChart').getContext('2d');
+  if(barChart) barChart.destroy();
+  barChart = new Chart(barCtx,{
+    type:'bar',
+    data:{ labels:['Predicted','Max Possible'], datasets:[{ label:'Power (kWh)', data:[predicted,(capacity*sunlightHours)], backgroundColor:['#fbbf24','#b45309'] }] },
+    options:{ responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+  });
+
+  const lineCtx=document.getElementById('lineChart').getContext('2d');
+  if(lineChart) lineChart.destroy();
+  lineChart = new Chart(lineCtx,{
+    type:'line',
+    data:{ labels:['Cloud','Temperature','Humidity','Wind'], datasets:[{ label:'Efficiency Factor', data:[
+      (1-cloud/100).toFixed(2),(1-((temp-25)*0.004)).toFixed(2),(1-((humidity-50)*0.002)).toFixed(2),(1-((wind-3)*0.01)).toFixed(2)
+    ], borderColor:'#b45309', backgroundColor:'rgba(251,191,36,0.5)', tension:0.4 }] },
+    options:{ responsive:true, scales:{ y:{ min:0, max:1 } } }
+  });
+
+  const scatterCtx=document.getElementById('scatterChart').getContext('2d');
+  if(scatterChart) scatterChart.destroy();
+  scatterChart = new Chart(scatterCtx,{
+    type:'scatter',
+    data:{ datasets:[{ label:'Factor vs Predicted Power', data:[
+      {x:temp, y:predicted}, {x:humidity, y:predicted}, {x:cloud, y:predicted}, {x:wind, y:predicted}
+    ], backgroundColor:'#b45309' }] },
+    options:{ responsive:true, scales:{ x:{ title:{ display:true,text:'Factor Value'} }, y:{ title:{ display:true,text:'Predicted Power (kWh)'} } } }
+  });
+}
+</script>
+
+</body>
+</html>
